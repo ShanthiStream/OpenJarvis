@@ -38,6 +38,10 @@ _LOCAL_HF_ORGS = (
     "bartowski/",
     "unsloth/",
     "lmstudio-community/",
+    # Ollama supports namespaced local models ("openbmb/minicpm5:latest").
+    # Without this entry the "/" catch-all below classifies them as OpenRouter
+    # and /v1/models drops them, so they never reach the installed-model picker.
+    "openbmb/",
 )
 
 
