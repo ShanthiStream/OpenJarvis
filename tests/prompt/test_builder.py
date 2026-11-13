@@ -178,6 +178,7 @@ def test_sections_expose_prompt_metadata(memory_dir: Path):
         "soul",
         "memory",
         "user",
+        "current_datetime",
         "session_context",
         "previous_state",
     ]
@@ -185,6 +186,43 @@ def test_sections_expose_prompt_metadata(memory_dir: Path):
     assert sections[1].cache_segment == "frozen_prefix"
     assert sections[-1].cache_segment == "dynamic_suffix"
     assert builder.build() == "\n\n".join(section.content for section in sections)
+
+
+def test_current_datetime_is_dynamic_and_never_in_frozen_prefix(memory_dir: Path):
+    """The injected clock must sit in the dynamic suffix.
+
+    A timestamp inside the cached frozen prefix would change every time the
+    date rolls over and invalidate the upstream prefix cache mid-conversation.
+    """
+    from openjarvis.prompt.builder import SystemPromptBuilder
+
+    builder = SystemPromptBuilder(
+        agent_template="You are Jarvis.",
+        system_prompt_config=SystemPromptConfig(),
+    )
+    prompt = builder.build()
+    frozen = builder._build_frozen_prefix()
+
+    assert "Today is" in prompt
+    assert "Today is" not in frozen
+    # The cached prefix must remain a literal prefix of the assembled prompt,
+    # otherwise the cacheable region is not actually cacheable.
+    assert prompt.startswith(frozen)
+
+    clock = [s for s in builder.sections() if s.name == "current_datetime"]
+    assert len(clock) == 1
+    assert clock[0].cache_segment == "dynamic_suffix"
+
+
+def test_current_datetime_can_be_disabled(memory_dir: Path):
+    from openjarvis.prompt.builder import SystemPromptBuilder
+
+    off = SystemPromptBuilder(
+        agent_template="You are Jarvis.",
+        system_prompt_config=SystemPromptConfig(inject_current_datetime=False),
+    )
+    assert "Today is" not in off.build()
+    assert "current_datetime" not in [s.name for s in off.sections()]
 
 
 def test_sections_keep_frozen_file_content_stable(memory_dir: Path):

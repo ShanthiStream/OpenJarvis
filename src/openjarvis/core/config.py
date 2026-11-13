@@ -1683,6 +1683,10 @@ class SystemPromptConfig:
     user_max_chars: int = 1500
     skill_desc_max_chars: int = 60
     truncation_strategy: str = "head_tail"
+    # Models cannot know the current date from their weights. Injecting it as a
+    # dynamic prompt section (never into the cached frozen prefix) makes "today",
+    # "yesterday" and "this week" answerable without a tool call.
+    inject_current_datetime: bool = True
 
 
 @dataclass(slots=True)

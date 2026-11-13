@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple
 
@@ -34,6 +35,7 @@ class SystemPromptBuilder:
         skill_catalog_xml: Optional[str] = None,
         skill_few_shot: Optional[List[str]] = None,
         skill_few_shot_examples: Optional[List[str]] = None,
+        include_current_datetime: Optional[bool] = None,
     ) -> None:
         self._agent_template = agent_template
         _mf = memory_files_config or MemoryFilesConfig()
@@ -43,6 +45,15 @@ class SystemPromptBuilder:
         self._session_context = session_context
         self._previous_state = previous_state
         self._skill_catalog_xml = skill_catalog_xml
+        # Models have no clock: their weights are frozen at a training cutoff,
+        # so the current date cannot be recalled or derived. Without this the
+        # model either refuses date questions or confidently invents a date.
+        # Explicit argument wins over config so callers can opt out per-builder.
+        self._include_current_datetime = (
+            self._sp_config.inject_current_datetime
+            if include_current_datetime is None
+            else include_current_datetime
+        )
         # Allow either name; skill_few_shot_examples is the Plan 2A canonical name.
         if skill_few_shot_examples is not None:
             self._skill_few_shot = list(skill_few_shot_examples)
@@ -55,6 +66,11 @@ class SystemPromptBuilder:
         if self._frozen_prefix is None:
             self._frozen_prefix = self._build_frozen_prefix()
         parts = [self._frozen_prefix]
+        # Dynamic sections below are appended AFTER the cached frozen prefix, so
+        # a changing clock never invalidates the KV/prefix cache upstream.
+        current_datetime = self._current_datetime_section()
+        if current_datetime is not None:
+            parts.append(f"\n\n{current_datetime.content}")
         if self._session_context:
             parts.append(f"\n\n## Session Context\n\n{self._session_context}")
         if self._previous_state:
@@ -64,6 +80,9 @@ class SystemPromptBuilder:
     def sections(self) -> list[PromptSection]:
         """Return prompt sections with lightweight cache/debug metadata."""
         sections = [*self._get_frozen_sections()]
+        current_datetime = self._current_datetime_section()
+        if current_datetime is not None:
+            sections.append(current_datetime)
         if self._session_context:
             sections.append(
                 PromptSection(
@@ -83,6 +102,41 @@ class SystemPromptBuilder:
                 )
             )
         return sections
+
+    def _current_datetime_section(self) -> Optional[PromptSection]:
+        """Render today's date as a dynamic section, computed at call time.
+
+        Deliberately **date** granularity, not time-of-day. Anything placed in
+        the suffix still sits in the middle of the rendered prompt (frozen
+        prefix -> suffix -> conversation), so a value that changes every minute
+        would break the upstream prefix cache for the rest of the turn. A date
+        changes once a day, so the cache survives all day. Exact times are the
+        job of the ``get_time`` tool, which runs on demand.
+        """
+        if not self._include_current_datetime:
+            return None
+        now = datetime.now().astimezone()
+        offset = now.utcoffset()
+        if offset is None:
+            offset_display = "local time"
+        else:
+            total_minutes = int(offset.total_seconds()) // 60
+            sign = "+" if total_minutes >= 0 else "-"
+            hours, minutes = divmod(abs(total_minutes), 60)
+            offset_display = f"UTC{sign}{hours:02d}:{minutes:02d}"
+        content = (
+            "## Current Date and Time\n\n"
+            f"Today is {now.strftime('%A, %d %B %Y')}"
+            f" ({now.strftime('%Y-%m-%d')}), local time {offset_display}.\n"
+            "Treat this as the current date when answering any question about"
+            ' today, yesterday, tomorrow, "this week", or relative dates.'
+        )
+        return PromptSection(
+            name="current_datetime",
+            content=content,
+            source="system_clock",
+            cache_segment="dynamic_suffix",
+        )
 
     def _get_frozen_sections(self) -> list[PromptSection]:
         if self._frozen_sections is None:
