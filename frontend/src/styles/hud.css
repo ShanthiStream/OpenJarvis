@@ -1,0 +1,471 @@
+/* ────────────────────────────────────────────────────────────────
+   OpenJarvis — cinematic instrument-panel layer
+   Presentation only. Adds tokens and utilities; changes no logic.
+   Imported after index.css, unlayered, so it wins the cascade.
+   ──────────────────────────────────────────────────────────────── */
+
+/* Light-mode HUD tokens. Without these the bracket gradients resolve to
+   nothing and every panel loses its corner marks. */
+:root {
+  --hud-line: rgba(8, 145, 178, 0.45);
+  --hud-line-dim: rgba(8, 145, 178, 0.16);
+  --hud-fill: rgba(8, 145, 178, 0.03);
+  --hud-bracket: 9px;
+  --hud-glow: 0 0 18px -6px rgba(8, 145, 178, 0.3);
+}
+
+/* Squared corners app-wide. Every `rounded-sm|md|lg|xl` utility and every
+   inline `var(--radius-*)` collapses to a 2px chamfer, which is what makes
+   the chrome read as instrumentation rather than as cards. `--radius-full`
+   is deliberately left alone so genuine pills (badges, dots) stay round. */
+:root {
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+}
+
+/* ── Palette ───────────────────────────────────────────────────────
+   Colder, deeper blacks than the stock zinc, with cyan phosphor
+   lines. The stock dark theme is neutral grey; a HUD wants a blue
+   undertone and much lower floor value so the lines carry the image.
+
+   Declared twice on purpose: `.dark` covers an explicit choice,
+   the media query covers theme: 'system' (where App.tsx adds no class).
+   ───────────────────────────────────────────────────────────────── */
+.dark {
+  --color-bg: #04070a;
+  --color-bg-secondary: #080d12;
+  --color-bg-tertiary: #0b131a;
+  --color-surface: #060b10;
+  --color-sidebar: rgba(4, 8, 11, 0.86);
+  --color-border: rgba(110, 190, 215, 0.13);
+  --color-border-subtle: rgba(110, 190, 215, 0.065);
+
+  --color-text: #dbe9f2;
+  --color-text-secondary: #7d94a3;
+  --color-text-tertiary: #4a6070;
+
+  --color-accent: #22d3ee;
+  --color-accent-hover: #7ef2ff;
+  --color-accent-subtle: rgba(34, 211, 238, 0.085);
+  --color-accent-glow: rgba(34, 211, 238, 0.32);
+
+  --color-input-bg: rgba(7, 15, 20, 0.9);
+  --color-input-border: rgba(34, 211, 238, 0.16);
+  --color-code-bg: #050a0e;
+
+  --color-user-bubble: rgba(34, 211, 238, 0.09);
+  --color-user-bubble-text: #e2f7ff;
+
+  --color-success: #38e0a0;
+  --color-warning: #f5b544;
+  --color-error: #ff6b6b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.65);
+  --shadow-md: 0 0 24px -10px rgba(34, 211, 238, 0.2), 0 10px 28px -12px rgba(0, 0, 0, 0.85);
+  --shadow-lg: 0 0 56px -14px rgba(34, 211, 238, 0.22), 0 22px 52px -18px rgba(0, 0, 0, 0.9);
+
+  /* HUD surface tokens */
+  --hud-line: rgba(34, 211, 238, 0.40);
+  --hud-line-dim: rgba(34, 211, 238, 0.14);
+  --hud-fill: rgba(34, 211, 238, 0.03);
+  --hud-bracket: 9px;
+  --hud-glow: 0 0 18px -6px rgba(34, 211, 238, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --color-bg: #04070a;
+    --color-bg-secondary: #080d12;
+    --color-bg-tertiary: #0b131a;
+    --color-surface: #060b10;
+    --color-sidebar: rgba(4, 8, 11, 0.86);
+    --color-border: rgba(110, 190, 215, 0.13);
+    --color-border-subtle: rgba(110, 190, 215, 0.065);
+
+    --color-text: #dbe9f2;
+    --color-text-secondary: #7d94a3;
+    --color-text-tertiary: #4a6070;
+
+    --color-accent: #22d3ee;
+    --color-accent-hover: #7ef2ff;
+    --color-accent-subtle: rgba(34, 211, 238, 0.085);
+    --color-accent-glow: rgba(34, 211, 238, 0.32);
+
+    --color-input-bg: rgba(7, 15, 20, 0.9);
+    --color-input-border: rgba(34, 211, 238, 0.16);
+    --color-code-bg: #050a0e;
+
+    --color-user-bubble: rgba(34, 211, 238, 0.09);
+    --color-user-bubble-text: #e2f7ff;
+
+    --color-success: #38e0a0;
+    --color-warning: #f5b544;
+    --color-error: #ff6b6b;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.65);
+    --shadow-md: 0 0 24px -10px rgba(34, 211, 238, 0.2), 0 10px 28px -12px rgba(0, 0, 0, 0.85);
+    --shadow-lg: 0 0 56px -14px rgba(34, 211, 238, 0.22), 0 22px 52px -18px rgba(0, 0, 0, 0.9);
+
+    --hud-line: rgba(34, 211, 238, 0.40);
+    --hud-line-dim: rgba(34, 211, 238, 0.14);
+    --hud-fill: rgba(34, 211, 238, 0.03);
+    --hud-bracket: 9px;
+    --hud-glow: 0 0 18px -6px rgba(34, 211, 238, 0.45);
+  }
+}
+
+/* ── Typography ────────────────────────────────────────────────────
+   Display face for chrome headings, mono for anything numeric or
+   labelled. Body copy stays in the system sans — HUD type is for
+   instruments, not for reading paragraphs.
+   ───────────────────────────────────────────────────────────────── */
+.hud-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+
+.hud-kicker {
+  font-family: var(--font-hud);
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-kicker::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  flex: none;
+  background: var(--color-accent);
+  opacity: 0.75;
+  box-shadow: 0 0 6px var(--color-accent-glow);
+}
+
+.hud-num {
+  font-family: var(--font-hud);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.01em;
+}
+
+/* Small mono caption that isn't a section label */
+.hud-mono-sm {
+  font-family: var(--font-hud);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Corner brackets ───────────────────────────────────────────────
+   The single most legible HUD idiom: four L-shaped corner marks on
+   a panel edge. Drawn as background gradients on a pseudo-element so
+   it never fights an element's own background or border.
+   ───────────────────────────────────────────────────────────────── */
+.hud-corners {
+  position: relative;
+}
+
+.hud-corners::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  z-index: 1;
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(var(--hud-line) 0 0), linear-gradient(var(--hud-line) 0 0),
+    linear-gradient(var(--hud-line) 0 0), linear-gradient(var(--hud-line) 0 0),
+    linear-gradient(var(--hud-line) 0 0), linear-gradient(var(--hud-line) 0 0),
+    linear-gradient(var(--hud-line) 0 0), linear-gradient(var(--hud-line) 0 0);
+  background-position:
+    left top, left top,
+    right top, right top,
+    left bottom, left bottom,
+    right bottom, right bottom;
+  background-size:
+    var(--hud-bracket) 1px, 1px var(--hud-bracket),
+    var(--hud-bracket) 1px, 1px var(--hud-bracket),
+    var(--hud-bracket) 1px, 1px var(--hud-bracket),
+    var(--hud-bracket) 1px, 1px var(--hud-bracket);
+  opacity: 0.55;
+  transition: opacity 200ms ease;
+}
+
+.hud-corners:hover::before,
+.hud-corners:focus-within::before {
+  opacity: 1;
+}
+
+/* Squared instrument panel — replaces the rounded card look */
+.hud-frame {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, var(--hud-fill), transparent 65%),
+    var(--color-bg-secondary);
+}
+
+/* Hairline rule with a cyan lead-in, used under section headers */
+.hud-rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    90deg,
+    var(--hud-line) 0,
+    var(--hud-line-dim) 18%,
+    var(--color-border-subtle) 100%
+  );
+}
+
+/* Ruler ticks — cheap, reads as an instrument scale */
+.hud-ticks {
+  height: 5px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--hud-line-dim) 0 1px,
+    transparent 1px 7px
+  );
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* ── Backdrop: vignette + scanlines ───────────────────────────────
+   Layered onto the existing grid/noise element in Layout.tsx.
+   Scanlines and vignette are DARK-ONLY: over a light background the
+   same 0.22 black stripes read as heavy grey banding and blur text.
+   ───────────────────────────────────────────────────────────────── */
+.hud-backdrop {
+  background-image:
+    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 40%),
+    radial-gradient(circle at 88% 112%, color-mix(in srgb, var(--color-accent-purple) 9%, transparent), transparent 44%);
+}
+
+.dark .hud-backdrop {
+  background-image:
+    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 40%),
+    radial-gradient(circle at 88% 112%, color-mix(in srgb, var(--color-accent-purple) 9%, transparent), transparent 44%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.6) 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .hud-backdrop {
+    background-image:
+      radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 40%),
+      radial-gradient(circle at 88% 112%, color-mix(in srgb, var(--color-accent-purple) 9%, transparent), transparent 44%),
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.6) 100%);
+  }
+}
+
+/* ── Reticle orb ──────────────────────────────────────────────────
+   Replaces the rounded-square greeting badge. Concentric rings: one
+   dashed and slowly rotating, one solid breathing, one core.
+   ───────────────────────────────────────────────────────────────── */
+.hud-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 128px;
+  height: 128px;
+  isolation: isolate;
+}
+
+.hud-orb::before,
+.hud-orb::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* outer dashed ring + tick marks */
+.hud-orb::before {
+  inset: 0;
+  border: 1px dashed var(--hud-line-dim);
+  animation: hud-spin 24s linear infinite;
+}
+
+/* mid ring */
+.hud-orb::after {
+  inset: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+  box-shadow:
+    inset 0 0 22px -8px var(--color-accent-glow),
+    0 0 26px -14px var(--color-accent-glow);
+  animation: hud-breathe 4.2s ease-in-out infinite;
+}
+
+@keyframes hud-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* the glyph / core at the centre */
+.hud-orb-core {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: var(--color-accent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-accent) 16%, transparent),
+    transparent 70%
+  );
+  box-shadow: 0 0 30px -10px var(--color-accent-glow);
+}
+
+/* ── Gauge ring ───────────────────────────────────────────────────
+   Conic ring for a bounded value. --v is 0..1, set inline.
+   ───────────────────────────────────────────────────────────────── */
+.hud-gauge {
+  --v: 0;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 200deg,
+    var(--color-accent) calc(var(--v) * 320deg),
+    var(--hud-line-dim) 0
+  );
+  -webkit-mask: radial-gradient(circle, transparent 0 56%, #000 58%);
+  mask: radial-gradient(circle, transparent 0 56%, #000 58%);
+}
+
+/* ── Composer ─────────────────────────────────────────────────────
+   Focus-within lifts the frame and adds phosphor bleed. This is the
+   element the user looks at most, so it carries the glow.
+   ───────────────────────────────────────────────────────────────── */
+.hud-input {
+  position: relative;
+  border: 1px solid var(--color-input-border);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(34, 211, 238, 0.045), transparent 70%),
+    var(--color-input-bg);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.hud-input:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-accent) 12%, transparent),
+    0 0 32px -12px var(--color-accent-glow);
+}
+
+.hud-input textarea::placeholder {
+  font-family: var(--font-hud);
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  color: var(--color-text-tertiary);
+}
+
+.hud-search input::placeholder {
+  font-family: var(--font-hud);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+/* ── Chips ────────────────────────────────────────────────────────
+   Pills become squared chips with mono labels.
+   ───────────────────────────────────────────────────────────────── */
+.hud-chip {
+  font-family: var(--font-hud);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+/* ── Nav ──────────────────────────────────────────────────────────
+   Squared rows, mono labels, cyan tick on the active item.
+   ───────────────────────────────────────────────────────────────── */
+.hud-nav-item {
+  border-radius: 2px;
+  font-family: var(--font-hud);
+  font-size: 11.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+/* ── Telemetry rows ───────────────────────────────────────────────
+   Squared rows with a left tick, used in the system rail.
+   ───────────────────────────────────────────────────────────────── */
+.hud-row {
+  position: relative;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 2px;
+  background: var(--color-bg-secondary);
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.hud-row:hover {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-secondary) 80%, var(--color-accent) 6%);
+}
+
+/* Active/primary row gets a solid edge and a corner notch */
+.hud-row-active {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-secondary));
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+/* ── Unify the pre-existing primitives ───────────────────────────
+   `.hud-panel`, `.hud-label` and `.hud-mono` already existed in
+   index.css but were styled as rounded cards with no type voice.
+   Squaring them and giving them the mono face brings the Dashboard
+   into the same language as the chat chrome, with no JSX changes.
+   ───────────────────────────────────────────────────────────────── */
+.hud-panel {
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, var(--hud-fill), transparent 65%),
+    var(--color-bg-secondary);
+}
+
+.hud-label {
+  font-family: var(--font-hud);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.hud-mono {
+  font-family: var(--font-hud);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────
+   Ring rotation and breathing are decorative; stop them entirely.
+   ───────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .hud-orb::before,
+  .hud-orb::after {
+    animation: none !important;
+  }
+  .hud-corners::before {
+    transition: none;
+  }
+}

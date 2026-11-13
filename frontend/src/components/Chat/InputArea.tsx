@@ -570,7 +570,7 @@ export function InputArea() {
             onClick={() => setDeepResearch(!deepResearch)}
             disabled={streamState.isStreaming}
             aria-pressed={deepResearch}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50"
+            className="hud-chip inline-flex items-center gap-1.5 px-2.5 py-1.5 transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50"
             style={{
               background: deepResearch ? 'var(--color-accent-subtle)' : 'transparent',
               border: `1px solid ${deepResearch ? 'var(--color-accent)' : 'var(--color-border)'}`,
@@ -578,7 +578,7 @@ export function InputArea() {
             }}
             title={deepResearch ? 'Deep Research: on' : 'Deep Research: off'}
           >
-            <Search size={12} />
+            <Search size={11} />
             Deep Research
           </button>
         </div>
@@ -588,21 +588,21 @@ export function InputArea() {
             style={{ color: 'var(--color-text-tertiary)' }}
           >
             Searching over{' '}
-            <span key={corpusSync.itemsSynced} className="sync-bump" style={{ color: 'var(--color-text-secondary)' }}>
+            <span key={corpusSync.itemsSynced} className="sync-bump hud-num" style={{ color: 'var(--color-text-secondary)' }}>
               {corpusSync.itemsSynced.toLocaleString()}
             </span>{' '}
             items — sync in progress, results will improve as more data is indexed.
           </div>
         )}
       </div>
-      <div
-        className="flex items-center gap-2 rounded-2xl px-4 py-3 transition-shadow"
-        style={{
-          background: 'var(--color-input-bg)',
-          border: '1px solid var(--color-input-border)',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
+      <div className="hud-input hud-corners flex items-center gap-2 px-4 py-3">
+        <span
+          className="hud-num select-none"
+          aria-hidden="true"
+          style={{ color: 'var(--color-accent)', fontSize: 13, opacity: 0.7, flex: 'none' }}
+        >
+          &gt;
+        </span>
         <textarea
           ref={textareaRef}
           value={input}
@@ -617,8 +617,8 @@ export function InputArea() {
         {isCurrentChatStreaming ? (
           <button
             onClick={stopStreaming}
-            className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer"
-            style={{ background: 'var(--color-error)', color: 'var(--color-on-accent)' }}
+            className="p-2 transition-colors shrink-0 cursor-pointer"
+            style={{ background: 'var(--color-error)', color: 'var(--color-on-accent)', borderRadius: 2 }}
             title="Stop generating"
           >
             <Square size={16} />
@@ -635,10 +635,12 @@ export function InputArea() {
               onClick={sendMessage}
               disabled={streamState.isStreaming || !input.trim() || modelLoading || !selectedModel}
               title={selectedModel ? 'Send message' : 'Pick a model first (⌘K)'}
-              className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
+              className="p-2 transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
               style={{
                 background: input.trim() ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
-                color: input.trim() ? 'white' : 'var(--color-text-tertiary)',
+                color: input.trim() ? 'var(--color-on-accent)' : 'var(--color-text-tertiary)',
+                borderRadius: 2,
+                boxShadow: input.trim() ? '0 0 16px -6px var(--color-accent-glow)' : 'none',
               }}
             >
               <Send size={16} />
@@ -646,10 +648,13 @@ export function InputArea() {
           </div>
         )}
       </div>
-      <div className="flex items-center justify-center mt-2 text-[11px]" style={{ color: 'var(--color-text-tertiary)' }}>
+      <div
+        className="hud-mono-sm flex items-center justify-center mt-2.5"
+        style={{ color: 'var(--color-text-tertiary)', letterSpacing: '0.06em' }}
+      >
         <span>
-          <kbd className="font-mono">Enter</kbd> to send &middot;{' '}
-          <kbd className="font-mono">Shift+Enter</kbd> for new line
+          <kbd className="hud-num">Enter</kbd> to send &middot;{' '}
+          <kbd className="hud-num">Shift+Enter</kbd> for new line
         </span>
       </div>
     </div>

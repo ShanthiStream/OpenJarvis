@@ -125,7 +125,8 @@ export function MessageBubble({ message, isLive = false }: Props) {
           style={{
             background: 'var(--color-user-bubble)',
             color: 'var(--color-user-bubble-text)',
-            borderRadius: 'var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl)',
+            borderRadius: 2,
+            borderRight: '2px solid color-mix(in srgb, var(--color-accent) 50%, transparent)',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
           }}

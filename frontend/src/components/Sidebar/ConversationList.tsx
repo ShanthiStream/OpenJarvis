@@ -36,8 +36,10 @@ export function ConversationList({ searchQuery }: Props) {
 
   if (filtered.length === 0) {
     return (
-      <div className="px-3 py-8 text-center text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-        {searchQuery ? 'No matching chats' : 'No conversations yet'}
+      <div className="px-3 py-8 text-center" style={{ color: 'var(--color-text-tertiary)' }}>
+        <span className="hud-kicker" style={{ opacity: 0.8 }}>
+          {searchQuery ? 'No matching chats' : 'No conversations yet'}
+        </span>
       </div>
     );
   }
@@ -50,9 +52,10 @@ export function ConversationList({ searchQuery }: Props) {
         return (
           <div
             key={conv.id}
-            className="group flex items-center rounded-lg cursor-pointer transition-colors"
+            className="group relative flex items-center cursor-pointer transition-colors"
             style={{
-              background: isActive ? 'var(--color-bg-tertiary)' : 'transparent',
+              background: isActive ? 'var(--color-accent-subtle)' : 'transparent',
+              borderRadius: 2,
             }}
             onMouseEnter={(e) => {
               if (!isActive) e.currentTarget.style.background = 'var(--color-bg-secondary)';
@@ -61,6 +64,13 @@ export function ConversationList({ searchQuery }: Props) {
               if (!isActive) e.currentTarget.style.background = 'transparent';
             }}
           >
+            {isActive && (
+              <span
+                aria-hidden="true"
+                className="absolute left-0 top-1 bottom-1"
+                style={{ width: 2, background: 'var(--color-accent)', boxShadow: '0 0 8px var(--color-accent-glow)' }}
+              />
+            )}
             <button
               onClick={() => {
                 selectConversation(conv.id);
@@ -69,7 +79,7 @@ export function ConversationList({ searchQuery }: Props) {
               className="flex-1 text-left px-3 py-2 min-w-0 cursor-pointer"
             >
               <div
-                className="text-sm truncate"
+                className="text-[12.5px] truncate"
                 style={{
                   color: isActive ? 'var(--color-text)' : 'var(--color-text-secondary)',
                   fontWeight: isActive ? 500 : 400,
@@ -77,7 +87,10 @@ export function ConversationList({ searchQuery }: Props) {
               >
                 {conv.title}
               </div>
-              <div className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+              <div
+                className="hud-mono-sm mt-0.5"
+                style={{ color: 'var(--color-text-tertiary)', fontSize: 9.5, letterSpacing: '0.05em' }}
+              >
                 {formatRelativeTime(conv.updatedAt)}
               </div>
             </button>
