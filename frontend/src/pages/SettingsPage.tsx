@@ -851,36 +851,36 @@ export function SettingsPage() {
                 />
               </button>
             </SettingRow>
-            <SettingRow label="Voice" description="Backend and voice used for spoken replies">
+            <SettingRow
+              label="Voice"
+              description={
+                ttsBackend === null ? 'Checking the speech backend...'
+                : !ttsBackend.available ? 'No text-to-speech backend available'
+                : ttsVoiceCatalog === null ? `Loading voices${ttsBackend.backend ? ` for ${ttsBackend.backend}` : ''}...`
+                : ttsVoiceCatalog.voices.length === 0
+                  ? `${ttsBackend.backend ?? 'Backend'} does not publish a voice list; using the configured voice`
+                  : `${ttsVoiceCatalog.voices.length} voices on ${ttsBackend.backend ?? 'this backend'}`
+              }
+            >
               <div className="flex items-center gap-2">
                 <span
-                  className="w-2 h-2 rounded-full"
+                  className="w-2 h-2 rounded-full shrink-0"
                   style={{
                     background: ttsBackend?.available ? 'var(--color-success)' : 'var(--color-text-tertiary)',
                   }}
                 />
-                <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  {ttsBackend === null ? 'Checking...'
-                    : ttsBackend.available ? `${ttsBackend.backend}${ttsBackend.voice_id ? ` / ${ttsBackend.voice_id}` : ''}`
-                    : 'Not configured'}
-                </span>
+                {ttsBackend?.available === false ? (
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Not configured</span>
+                ) : (
+                  <VoicePresetSelect
+                    voices={ttsVoiceCatalog?.voices ?? []}
+                    value={settings.voiceId}
+                    serverVoice={ttsVoiceCatalog?.serverVoice}
+                    ready={ttsVoiceCatalog !== null}
+                    onChange={(voice) => { updateSettings({ voiceId: voice }); showSaved(); }}
+                  />
+                )}
               </div>
-            </SettingRow>
-            <SettingRow
-              label="Voice preset"
-              description={
-                ttsVoiceCatalog === null ? 'Loading available voices...'
-                : ttsVoiceCatalog.voices.length === 0 ? 'This backend does not publish a voice list; the configured voice is used.'
-                : `${ttsVoiceCatalog.voices.length} voices available`
-              }
-            >
-              <VoicePresetSelect
-                voices={ttsVoiceCatalog?.voices ?? []}
-                value={settings.voiceId}
-                serverVoice={ttsVoiceCatalog?.serverVoice}
-                ready={ttsVoiceCatalog !== null}
-                onChange={(voice) => { updateSettings({ voiceId: voice }); showSaved(); }}
-              />
             </SettingRow>
             <SettingRow
               label="Greet me on startup"
@@ -920,7 +920,7 @@ export function SettingsPage() {
                 }}
               />
             </SettingRow>
-            <SettingRow label="Backend status" description="Requires Whisper, Deepgram, or another speech backend">
+            <SettingRow label="Dictation backend" description="Speech-to-text engine behind the microphone button">
               <div className="flex items-center gap-2">
                 <span
                   className="w-2 h-2 rounded-full"

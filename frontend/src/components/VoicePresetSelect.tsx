@@ -32,7 +32,7 @@ export function VoicePresetSelect({
       value={selected}
       onChange={(e) => onChange(e.target.value)}
       disabled={!ready || voices.length === 0}
-      aria-label="Voice preset"
+      aria-label="Voice"
       className="px-3 py-1.5 rounded-lg text-xs cursor-pointer disabled:cursor-default"
       style={{
         background: 'var(--color-bg-secondary)',
