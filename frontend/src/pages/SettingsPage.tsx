@@ -23,6 +23,7 @@ import {
   checkHealth,
   fetchSpeechHealth,
   fetchTtsHealth,
+  fetchTtsVoices,
   getMemoryStats,
   getInferenceSource,
   setInferenceSource,
@@ -36,6 +37,7 @@ import {
   type MemoryStats,
 } from '../lib/api';
 import { isAutoUpdateDisabled, setAutoUpdateDisabled } from '../components/Desktop/UpdateChecker';
+import { VoicePresetSelect } from '../components/VoicePresetSelect';
 
 const CLOUD_KEY_STATUS_CHANGED = 'openjarvis-cloud-key-status-changed';
 
@@ -293,6 +295,8 @@ export function SettingsPage() {
   const [healthy, setHealthy] = useState<boolean | null>(null);
   const [speechBackendAvailable, setSpeechBackendAvailable] = useState<boolean | null>(null);
   const [ttsBackend, setTtsBackend] = useState<{ available: boolean; backend?: string; voice_id?: string } | null>(null);
+  // Voice catalog for the active TTS backend. `null` means "not fetched yet".
+  const [ttsVoiceCatalog, setTtsVoiceCatalog] = useState<{ backend?: string; serverVoice?: string; voices: string[] } | null>(null);
   const [saved, setSaved] = useState(false);
 
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(() => !isAutoUpdateDisabled());
@@ -399,6 +403,15 @@ export function SettingsPage() {
     fetchTtsHealth()
       .then((h) => setTtsBackend(h))
       .catch(() => setTtsBackend({ available: false }));
+    fetchTtsVoices()
+      .then((catalog) =>
+        setTtsVoiceCatalog({
+          backend: catalog.backend,
+          serverVoice: catalog.voice_id,
+          voices: catalog.voices,
+        }),
+      )
+      .catch(() => setTtsVoiceCatalog({ voices: [] }));
   }, []);
 
   const showSaved = () => {
@@ -852,6 +865,60 @@ export function SettingsPage() {
                     : 'Not configured'}
                 </span>
               </div>
+            </SettingRow>
+            <SettingRow
+              label="Voice preset"
+              description={
+                ttsVoiceCatalog === null ? 'Loading available voices...'
+                : ttsVoiceCatalog.voices.length === 0 ? 'This backend does not publish a voice list; the configured voice is used.'
+                : `${ttsVoiceCatalog.voices.length} voices available`
+              }
+            >
+              <VoicePresetSelect
+                voices={ttsVoiceCatalog?.voices ?? []}
+                value={settings.voiceId}
+                serverVoice={ttsVoiceCatalog?.serverVoice}
+                ready={ttsVoiceCatalog !== null}
+                onChange={(voice) => { updateSettings({ voiceId: voice }); showSaved(); }}
+              />
+            </SettingRow>
+            <SettingRow
+              label="Greet me on startup"
+              description="Jarvis introduces himself aloud when the app starts"
+            >
+              <button
+                onClick={() => { updateSettings({ voiceGreetingEnabled: !settings.voiceGreetingEnabled }); showSaved(); }}
+                disabled={!settings.voiceOutputEnabled}
+                className="relative w-11 h-6 rounded-full transition-colors cursor-pointer"
+                style={{
+                  background: settings.voiceGreetingEnabled && settings.voiceOutputEnabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                  opacity: settings.voiceOutputEnabled ? 1 : 0.4,
+                  cursor: settings.voiceOutputEnabled ? 'pointer' : 'default',
+                }}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform bg-white"
+                  style={{
+                    transform: settings.voiceGreetingEnabled && settings.voiceOutputEnabled ? 'translateX(20px)' : 'translateX(0)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </button>
+            </SettingRow>
+            <SettingRow label="Greeting name" description="How Jarvis addresses you in the startup line">
+              <input
+                type="text"
+                value={settings.userName}
+                onChange={(e) => updateSettings({ userName: e.target.value })}
+                onBlur={showSaved}
+                placeholder="Your name"
+                className="px-3 py-1.5 rounded-lg text-xs w-40"
+                style={{
+                  background: 'var(--color-bg-secondary)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
+                }}
+              />
             </SettingRow>
             <SettingRow label="Backend status" description="Requires Whisper, Deepgram, or another speech backend">
               <div className="flex items-center gap-2">

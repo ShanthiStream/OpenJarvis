@@ -10,6 +10,7 @@ interface Props {
 /** Reads one assistant message aloud through the server's TTS backend. */
 export function SpeakMessageButton({ messageId, content }: Props) {
   const voiceOutputEnabled = useAppStore((s) => s.settings.voiceOutputEnabled);
+  const voiceId = useAppStore((s) => s.settings.voiceId);
   const { speak, stop, speakingId, available, state, error, errorId } = useTts();
 
   if (!voiceOutputEnabled || !available) return null;
@@ -23,7 +24,7 @@ export function SpeakMessageButton({ messageId, content }: Props) {
   return (
     <>
       <button
-        onClick={() => (busy ? stop() : speak(messageId, content))}
+        onClick={() => (busy ? stop() : speak(messageId, content, { voiceId }))}
         className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
         style={{
           color: busy ? 'var(--color-accent)' : 'var(--color-text-tertiary)',

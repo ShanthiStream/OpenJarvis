@@ -131,3 +131,6 @@ learning.db
 minion_logs/
 *.oj-debug.json
 oj-debug.*.json
+
+# npm caches kept inside the tree (never commit these)
+frontend/npm-cache/

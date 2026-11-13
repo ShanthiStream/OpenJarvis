@@ -1190,6 +1190,40 @@ async def tts_health(request: Request):
     }
 
 
+@speech_router.get("/tts/voices")
+async def tts_voices(request: Request):
+    """List the voices the active backend can synthesize with.
+
+    Voice catalogs are backend-specific and can be large (Phonon ships ~40),
+    so they are enumerated rather than hardcoded. A backend that cannot list
+    its voices returns an empty catalog instead of failing the request -- the
+    UI then falls back to showing the configured voice only.
+    """
+    backend = await _resolve_tts_backend(request)
+    if backend is None:
+        return {
+            "available": False,
+            "backend": "",
+            "voice_id": "",
+            "voices": [],
+            "reason": "No text-to-speech backend available",
+        }
+
+    voice_id, _ = _tts_voice_and_speed(request, backend)
+    try:
+        voices = await asyncio.to_thread(backend.available_voices)
+    except Exception:
+        logger.debug("TTS voice enumeration failed", exc_info=True)
+        voices = []
+
+    return {
+        "available": True,
+        "backend": getattr(backend, "backend_id", ""),
+        "voice_id": voice_id,
+        "voices": [str(v) for v in voices],
+    }
+
+
 # ---- Feedback routes ----
 
 feedback_router = APIRouter(prefix="/v1/feedback", tags=["feedback"])

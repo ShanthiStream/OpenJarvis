@@ -14,6 +14,7 @@ const health = vi.mocked(fetchTtsHealth);
 /** Minimal HTMLAudioElement stand-in; jsdom cannot decode or play real audio. */
 class FakeAudio {
   static instances: FakeAudio[] = [];
+  static blockedPlays = 0;
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
   src: string;
@@ -27,6 +28,12 @@ class FakeAudio {
 
   play(): Promise<void> {
     this.playCalls += 1;
+    // Consumed one at a time so a test can block the first attempt (autoplay
+    // policy) and let the retry through.
+    if (FakeAudio.blockedPlays > 0) {
+      FakeAudio.blockedPlays -= 1;
+      return Promise.reject(new DOMException('play() failed', 'NotAllowedError'));
+    }
     return Promise.resolve();
   }
 
@@ -60,6 +67,7 @@ beforeEach(() => {
   // keeps that bookkeeping out of this test's assertions.
   __resetTtsForTests();
   FakeAudio.instances = [];
+  FakeAudio.blockedPlays = 0;
   created.length = 0;
   revoked.length = 0;
   urlCounter = 0;
@@ -102,6 +110,18 @@ describe('shared voice output', () => {
     expect(first.paused).toBe(true);
     expect(useTtsStore.getState().speakingId).toBe('m2');
     expect(revoked).toContain(created[0]);
+  });
+
+  it('sends the chosen voice, and lets the server pick when none is chosen', async () => {
+    synth.mockResolvedValue(new Blob(['wav']));
+
+    await useTtsStore.getState().speak('m1', 'Hallo', { voiceId: 'Bryony' });
+    expect(synth.mock.calls[0][1]?.voiceId).toBe('Bryony');
+
+    // No voice chosen: the field is omitted so the server falls back to
+    // `[speech].voice_id` in config.toml.
+    await useTtsStore.getState().speak('m2', 'Hallo');
+    expect(synth.mock.calls[1][1]?.voiceId).toBeUndefined();
   });
 
   it('aborts a synthesis that is superseded before it resolves', async () => {
@@ -212,6 +232,82 @@ describe('shared voice output', () => {
 
     expect(health).toHaveBeenCalledTimes(2);
     expect(useTtsStore.getState().available).toBe(true);
+  });
+});
+
+describe('startup greeting playback', () => {
+  /** Minimal document stand-in: node has no DOM, but the store needs the events. */
+  function stubDocument() {
+    const listeners = new Map<string, Set<EventListener>>();
+    vi.stubGlobal('document', {
+      addEventListener: (type: string, fn: EventListener) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)!.add(fn);
+      },
+      removeEventListener: (type: string, fn: EventListener) => {
+        listeners.get(type)?.delete(fn);
+      },
+    });
+    return {
+      fire: (type: string) => {
+        for (const fn of [...(listeners.get(type) ?? [])]) {
+          fn(new Event(type));
+        }
+      },
+      listenerCount: (type: string) => listeners.get(type)?.size ?? 0,
+    };
+  }
+
+  it('waits for a gesture instead of reporting a failure when autoplay is blocked', async () => {
+    const doc = stubDocument();
+    synth.mockResolvedValue(new Blob(['wav']));
+    FakeAudio.blockedPlays = 1;
+
+    await useTtsStore.getState().speak('__startup-greeting__', 'Good evening, Dinesh.', {
+      deferUntilGesture: true,
+    });
+
+    // Nothing played yet, but the failure is not the user's to fix either.
+    expect(FakeAudio.instances[0].playCalls).toBe(1);
+    expect(useTtsStore.getState().state).toBe('idle');
+    expect(useTtsStore.getState().error).toBeNull();
+    expect(doc.listenerCount('pointerdown')).toBe(1);
+
+    doc.fire('pointerdown');
+    // The retry resolves on a microtask; let it land before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(FakeAudio.instances[0].playCalls).toBe(2);
+    expect(useTtsStore.getState().state).toBe('speaking');
+    expect(useTtsStore.getState().speakingId).toBe('__startup-greeting__');
+    // The listener is one-shot: a second click must not restart the line.
+    expect(doc.listenerCount('pointerdown')).toBe(0);
+  });
+
+  it('still reports a blocked reply, which follows a click and should have played', async () => {
+    stubDocument();
+    synth.mockResolvedValue(new Blob(['wav']));
+    FakeAudio.blockedPlays = 1;
+
+    await useTtsStore.getState().speak('m1', 'Hello');
+
+    expect(useTtsStore.getState().error).toBeTruthy();
+    expect(useTtsStore.getState().errorId).toBe('m1');
+  });
+
+  it('leaves no gesture listener behind when the user stops it first', async () => {
+    const doc = stubDocument();
+    synth.mockResolvedValue(new Blob(['wav']));
+    FakeAudio.blockedPlays = 1;
+
+    await useTtsStore.getState().speak('__startup-greeting__', 'Good evening.', {
+      deferUntilGesture: true,
+    });
+    expect(doc.listenerCount('pointerdown')).toBe(1);
+
+    useTtsStore.getState().stop();
+
+    expect(doc.listenerCount('pointerdown')).toBe(0);
   });
 });
 

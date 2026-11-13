@@ -15,6 +15,7 @@ import { useAppStore } from './lib/store';
 import { fetchModels, fetchServerInfo, fetchSavings, submitSavings, isTauri } from './lib/api';
 import { OptInModal } from './components/OptInModal';
 import { UpdateChecker } from './components/Desktop/UpdateChecker';
+import { StartupGreeting } from './components/StartupGreeting';
 import { track, hashId } from './lib/analytics';
 import { offerAnalyticsChoice } from './lib/analytics-invitation';
 
@@ -191,6 +192,7 @@ export default function App() {
   return (
     <>
       <UpdateChecker />
+      <StartupGreeting />
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<ChatPage />} />

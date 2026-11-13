@@ -295,6 +295,38 @@ def test_tts_health_without_backend():
     assert "reason" in data
 
 
+def test_tts_voices_lists_backend_catalog(mock_tts_backend):
+    mock_tts_backend.available_voices.return_value = ["Alfie", "Bryony", "Zoey"]
+    client = _tts_app(mock_tts_backend)
+
+    data = client.get("/v1/speech/tts/voices").json()
+
+    assert data["available"] is True
+    assert data["backend"] == "mock_tts"
+    assert data["voices"] == ["Alfie", "Bryony", "Zoey"]
+    mock_tts_backend.available_voices.assert_called_once_with()
+
+
+def test_tts_voices_without_backend():
+    client = _tts_app(None)
+
+    data = client.get("/v1/speech/tts/voices").json()
+
+    assert data["available"] is False
+    assert data["voices"] == []
+    assert "reason" in data
+
+
+def test_tts_voices_tolerates_backend_that_cannot_enumerate(mock_tts_backend):
+    mock_tts_backend.available_voices.side_effect = RuntimeError("ollama down")
+    client = _tts_app(mock_tts_backend)
+
+    response = client.get("/v1/speech/tts/voices")
+
+    assert response.status_code == 200
+    assert response.json()["voices"] == []
+
+
 def test_tts_health_retries_after_unavailable(mock_tts_backend):
     app = _unresolved_tts_app()
     client = TestClient(app)

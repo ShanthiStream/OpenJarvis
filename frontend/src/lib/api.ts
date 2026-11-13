@@ -431,6 +431,27 @@ export async function fetchTtsHealth(): Promise<TtsHealth> {
   return res.json();
 }
 
+export interface TtsVoices {
+  available: boolean;
+  backend?: string;
+  /** Voice the server would use right now, from config.toml. */
+  voice_id?: string;
+  /** Every voice the active backend can synthesize with. */
+  voices: string[];
+  reason?: string;
+}
+
+export async function fetchTtsVoices(): Promise<TtsVoices> {
+  try {
+    const res = await apiFetch(`/v1/speech/tts/voices`);
+    if (!res.ok) return { available: false, voices: [] };
+    const data: TtsVoices = await res.json();
+    return { ...data, voices: data.voices ?? [] };
+  } catch {
+    return { available: false, voices: [] };
+  }
+}
+
 export async function fetchSpeechHealth(): Promise<SpeechHealth> {
   if (isTauri()) {
     try {

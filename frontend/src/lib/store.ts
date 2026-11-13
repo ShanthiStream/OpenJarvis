@@ -108,7 +108,20 @@ interface Settings {
   speechEnabled: boolean;
   voiceOutputEnabled: boolean;
   voiceAutoplay: boolean;
+  // Voice used for spoken replies. Empty = whatever `[speech].voice_id` in
+  // config.toml says, so a fresh install still speaks with the backend default.
+  voiceId: string;
+  /** How Jarvis addresses the user in the startup introduction. */
+  userName: string;
+  /** Speak the introduction when the GUI starts. */
+  voiceGreetingEnabled: boolean;
+  // Bumped when a default changes in a way persisted settings would otherwise
+  // hide. Lets an upgrade apply the new default exactly once.
+  settingsVersion: number;
 }
+
+/** Current settings schema version; bump when a default change needs a migration. */
+const SETTINGS_VERSION = 2;
 
 function loadSettings(): Settings {
   const defaults: Settings = {
@@ -121,13 +134,31 @@ function loadSettings(): Settings {
     temperature: 0.7,
     maxTokens: 4096,
     speechEnabled: false,
-    voiceOutputEnabled: false,
-    voiceAutoplay: false,
+    voiceOutputEnabled: true,
+    voiceAutoplay: true,
+    voiceId: '',
+    userName: 'Dinesh',
+    voiceGreetingEnabled: true,
+    settingsVersion: SETTINGS_VERSION,
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    const stored = JSON.parse(raw) as Partial<Settings>;
+    // v1 profiles were written before voice output defaulted on. Their stored
+    // `false` is indistinguishable from "never opted in", so apply the new
+    // default once rather than leaving existing users silently mute forever.
+    if ((stored.settingsVersion ?? 1) < 2) {
+      stored.voiceOutputEnabled = true;
+      stored.voiceAutoplay = true;
+    }
+    const merged: Settings = {
+      ...defaults,
+      ...stored,
+      settingsVersion: SETTINGS_VERSION,
+    };
+    saveSettings(merged);
+    return merged;
   } catch {
     return defaults;
   }
@@ -488,10 +519,18 @@ export const useAppStore = create<AppState>((set, get) => {
         // embedder and every chat failed with HTTP 400 "does not support
         // chat". Prefer a real chat model for selection / fallback.
         const chatModels = models.filter((m) => !isEmbedOnlyModel(m.id));
+        // The backend already resolved which model the user wants
+        // ([intelligence] default_model, surfaced on /v1/info). Prefer it over
+        // whichever model the engine happens to list first, which is arbitrary
+        // and silently ignored the configured default.
+        const serverDefault = state.serverInfo?.model ?? '';
         const preferred =
           (state.settings.defaultModel &&
             chatModels.some((m) => m.id === state.settings.defaultModel) &&
             state.settings.defaultModel) ||
+          (serverDefault &&
+            chatModels.some((m) => m.id === serverDefault) &&
+            serverDefault) ||
           chatModels[0]?.id ||
           models.find((m) => !isEmbedOnlyModel(m.id))?.id ||
           '';
@@ -513,8 +552,30 @@ export const useAppStore = create<AppState>((set, get) => {
         return { models };
       }),
     setModelsLoading: (loading: boolean) => set({ modelsLoading: loading }),
-    setSelectedModel: (model: string) => set({ selectedModel: model }),
-    setServerInfo: (info: ServerInfo | null) => set({ serverInfo: info }),
+    setSelectedModel: (model: string) => {
+      // Persist the pick. Nothing used to write settings.defaultModel, so the
+      // selection lived only in memory and every reload fell back to the first
+      // model the engine listed.
+      const updated = { ...get().settings, defaultModel: model };
+      saveSettings(updated);
+      set({ selectedModel: model, settings: updated });
+    },
+    setServerInfo: (info: ServerInfo | null) =>
+      set((state) => {
+        const wanted = info?.model ?? '';
+        // /v1/info arrives after /v1/models, so the initial auto-selection has
+        // already run by the time the backend's configured default is known.
+        // Apply it here for first-run users who have no saved preference.
+        if (
+          wanted &&
+          !state.settings.defaultModel &&
+          state.selectedModel !== wanted &&
+          state.models.some((m) => m.id === wanted)
+        ) {
+          return { serverInfo: info, selectedModel: wanted };
+        }
+        return { serverInfo: info };
+      }),
     setSavings: (data: SavingsData | null) => set({ savings: data }),
     incrementSavings: (usage: TokenUsage) => {
       const cur = get().savings;
