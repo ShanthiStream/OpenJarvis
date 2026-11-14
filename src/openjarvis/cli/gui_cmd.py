@@ -309,6 +309,11 @@ def stop_frontend(*, state: dict | None = None) -> int | None:
 def _port_free(port: int) -> bool:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            # Match the listener's socket options. Without SO_REUSEADDR a
+            # recently-stopped frontend leaves the port in TIME_WAIT and this
+            # check reports "unavailable" for ~60s even though `jarvis gui`
+            # would bind it successfully.
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             probe.bind(("127.0.0.1", port))
     except OSError:
         return False

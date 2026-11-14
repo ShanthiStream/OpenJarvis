@@ -70,3 +70,47 @@ def test_cors_config_is_used_without_environment(monkeypatch):
     origins = _resolve_server_cors_origins(["http://localhost:5173"])
 
     assert origins == ["http://localhost:5173"]
+
+
+def test_server_memory_tools_receive_the_live_backend():
+    """The serve path must bind the backend at construction time.
+
+    Regression: tools were built with ``tool_cls(**file_tool_kwargs(...))``,
+    so ``memory_store`` kept ``_backend = None`` and every call answered
+    "No memory backend configured." even though the memory service was active.
+    """
+    from openjarvis.cli.serve import _instantiate_server_tools
+
+    class _FakeBackend:
+        backend_id = "fake"
+
+    backend = _FakeBackend()
+    config = JarvisConfig()
+    config.tools.enabled = ["memory_store", "memory_search", "memory_retrieve"]
+
+    tools = _instantiate_server_tools(
+        config,
+        engine=object(),
+        model="test-model",
+        memory_backend=backend,
+    )
+
+    assert tools, "expected the configured memory tools to be instantiated"
+    for tool in tools:
+        assert tool._backend is backend
+
+
+def test_server_tool_resolution_skips_unconfigured_tools():
+    from openjarvis.cli.serve import _instantiate_server_tools
+
+    config = JarvisConfig()
+    config.tools.enabled = ["memory_store"]
+
+    tools = _instantiate_server_tools(
+        config,
+        engine=object(),
+        model="test-model",
+        memory_backend=None,
+    )
+
+    assert [tool.spec.name for tool in tools] == ["memory_store"]
