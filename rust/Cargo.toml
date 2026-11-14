@@ -20,7 +20,7 @@ members = [
     "crates/openjarvis-scheduler",
 ]
 
-# uuid 1.27 requires Rust 1.89; keep this aligned with rust-toolchain.toml.
+# uuid 1.27 requires Rust 1.89; rust-toolchain.toml pins stable (>= 1.89).
 [workspace.package]
 rust-version = "1.89"
 
@@ -50,3 +50,9 @@ fnmatch-regex = "0.2"
 url = "2"
 rig-core = "0.31"
 schemars = "1"
+
+# Release builds produced a .so that macOS 26 dyld rejects
+# (mis-aligned LINKEDIT string pool) because rustc strips debuginfo in the
+# release profile by default. Keep symbols; alignment outweighs size.
+[profile.release]
+strip = false
