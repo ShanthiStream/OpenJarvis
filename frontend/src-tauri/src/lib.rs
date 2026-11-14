@@ -307,6 +307,8 @@ fn find_project_root() -> Option<std::path::PathBuf> {
     // 3. Fallback: well-known direct paths
     let home = home_dir();
     let direct = [
+        // The uv-managed checkout installed by the official/Fork installer.
+        format!("{home}/.openjarvis/src"),
         format!("{home}/OpenJarvis"),
         format!("{home}/projects/hazy/OpenJarvis"),
         format!("{home}/projects/OpenJarvis"),
