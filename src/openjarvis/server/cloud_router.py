@@ -45,6 +45,35 @@ _LOCAL_HF_ORGS = (
 )
 
 
+def load_cloud_env() -> dict[str, str]:
+    """Export ``cloud-keys.env`` entries into the process environment.
+
+    The file is the single durable home for cloud provider keys outside the
+    desktop app: the server builds its cloud engine at startup, and that path
+    only inspects ``os.environ``. Loading it here makes the key survive every
+    restart instead of requiring a ``POST /v1/cloud/reload`` afterwards.
+
+    Existing environment variables always win, so a shell export or a
+    credential-store injection still takes precedence. Returns the names (not
+    values) that were loaded so callers can log which providers are wired up.
+    """
+    loaded: dict[str, str] = {}
+    if not _CLOUD_ENV_FILE.exists():
+        return loaded
+    for raw in _CLOUD_ENV_FILE.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = name.strip()
+        value = value.strip().strip('"').strip("'")
+        if not name or not value or os.environ.get(name):
+            continue
+        os.environ[name] = value
+        loaded[name] = value
+    return loaded
+
+
 def _load_keys() -> dict[str, str]:
     """Read available cloud keys every call so live updates are picked up."""
     keys: dict[str, str] = {}

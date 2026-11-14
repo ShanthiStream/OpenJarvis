@@ -228,6 +228,23 @@ def serve(
     # so availability checks and tool instances see the same environment.
     inject_credentials()
 
+    # Cloud provider keys written to ~/.openjarvis/cloud-keys.env (the
+    # non-desktop path) must reach the environment before the cloud engine is
+    # probed below, otherwise a valid key only takes effect after a manual
+    # POST /v1/cloud/reload. Never log the values — only the variable names.
+    try:
+        from openjarvis.server.cloud_router import load_cloud_env
+
+        _loaded_cloud_keys = sorted(load_cloud_env())
+        if _loaded_cloud_keys:
+            console.print(
+                "  Cloud keys: [cyan]"
+                + ", ".join(_loaded_cloud_keys)
+                + "[/cyan] (cloud-keys.env)"
+            )
+    except Exception as exc:
+        logger.debug("cloud-keys.env load failed: %s", exc)
+
     config = load_config()
 
     # Resolve host/port from CLI args or config

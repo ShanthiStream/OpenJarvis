@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from openjarvis.core.types import Message
@@ -72,3 +74,30 @@ async def test_stream_cloud_normalizes_openrouter_model_before_forwarding(
 
     assert tokens == ["ok"]
     assert captured["model"] == expected_forwarded_model
+
+
+def test_load_cloud_env_exports_keys_without_overriding(monkeypatch, tmp_path):
+    keys_file = tmp_path / "cloud-keys.env"
+    keys_file.write_text(
+        "# comment\n"
+        "OPENROUTER_API_KEY=sk-or-v1-from-file\n"
+        "OPENAI_API_KEY='sk-from-file'\n"
+        "MALFORMED_LINE\n"
+    )
+    monkeypatch.setattr(cloud_router, "_CLOUD_ENV_FILE", keys_file)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-shell")
+
+    loaded = cloud_router.load_cloud_env()
+
+    assert sorted(loaded) == ["OPENROUTER_API_KEY"]
+    assert os.environ["OPENROUTER_API_KEY"] == "sk-or-v1-from-file"
+    # An existing shell export always wins over the file.
+    assert os.environ["OPENAI_API_KEY"] == "sk-from-shell"
+    assert "MALFORMED_LINE" not in os.environ
+
+
+def test_load_cloud_env_is_a_noop_without_the_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(cloud_router, "_CLOUD_ENV_FILE", tmp_path / "missing.env")
+
+    assert cloud_router.load_cloud_env() == {}
