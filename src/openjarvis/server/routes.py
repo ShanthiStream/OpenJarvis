@@ -1291,6 +1291,39 @@ async def reload_cloud_engine(request: Request):
     return {"status": "ok", "message": "Cloud engine reloaded"}
 
 
+_CLOUD_KEY_NAMES = (
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "OPENROUTER_API_KEY",
+    "MINIMAX_API_KEY",
+    "ATLASCLOUD_API_KEY",
+)
+
+
+@router.get("/v1/cloud/status")
+async def cloud_status(request: Request):
+    """Report whether cloud provider keys are configured.
+
+    The browser GUI cannot read the Tauri keychain, so in non-desktop mode it
+    had no way to know a key existed and Cloud Models stayed hidden even with
+    a valid cloud-keys.env. This endpoint answers with variable names and
+    booleans only — never key material.
+    """
+    import os
+
+    from openjarvis.server.cloud_router import load_cloud_env
+
+    load_cloud_env()
+    keys = {name: bool(os.environ.get(name)) for name in _CLOUD_KEY_NAMES}
+    return {
+        "status": "ok",
+        "keys": keys,
+        "any": any(keys.values()),
+    }
+
+
 @router.get("/v1/savings")
 async def savings(request: Request):
     """Return savings summary compared to cloud providers.

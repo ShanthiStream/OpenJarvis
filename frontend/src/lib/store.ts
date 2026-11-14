@@ -16,6 +16,7 @@ import type {
 } from '../types';
 import type { ManagedAgent } from './api';
 import { isEmbedOnlyModel } from './model-capabilities';
+import { isCloudModelId } from './model-capabilities';
 import { serializeToolCallArguments } from './tool-call';
 
 export interface CachedConnector {
@@ -526,7 +527,8 @@ export const useAppStore = create<AppState>((set, get) => {
         const serverDefault = state.serverInfo?.model ?? '';
         const preferred =
           (state.settings.defaultModel &&
-            chatModels.some((m) => m.id === state.settings.defaultModel) &&
+            (chatModels.some((m) => m.id === state.settings.defaultModel) ||
+              isCloudModelId(state.settings.defaultModel)) &&
             state.settings.defaultModel) ||
           (serverDefault &&
             chatModels.some((m) => m.id === serverDefault) &&
@@ -537,8 +539,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
         const currentIsBad =
           !!state.selectedModel && isEmbedOnlyModel(state.selectedModel);
+        // Cloud model ids are never listed by /v1/models; they are served by
+        // the cloud engine when a key is present. Do not reset an explicit
+        // cloud pick to the local default.
         const currentMissing =
           !!state.selectedModel &&
+          !isCloudModelId(state.selectedModel) &&
           !models.some((m) => m.id === state.selectedModel);
 
         if (!state.selectedModel || currentIsBad || currentMissing) {

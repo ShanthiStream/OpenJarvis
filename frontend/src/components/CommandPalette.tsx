@@ -110,17 +110,15 @@ export function CommandPalette() {
   const desktopKeyStorage = isTauri();
 
   const refreshCloudKeyStatus = useCallback(async () => {
-    if (!desktopKeyStorage) {
-      setCloudKeyStatus({});
-      return;
-    }
     try {
+      // Desktop: Tauri keychain status. Browser/manual: same shape from the
+      // server (/v1/cloud/status), which reports presence only, never values.
       setCloudKeyStatus(await getCloudKeyStatus());
       setCloudKeyError(null);
     } catch (e: any) {
       setCloudKeyError(e?.message || 'Failed to read cloud key status');
     }
-  }, [desktopKeyStorage]);
+  }, []);
 
   const filtered = tab === 'installed'
     ? (query
@@ -499,7 +497,7 @@ export function CommandPalette() {
                           value={key}
                           onChange={(e) => setApiKeys((prev) => ({ ...prev, [provider.envKey]: e.target.value }))}
                           onBlur={() => handleKeyBlur(provider)}
-                          placeholder={hasSavedKey ? 'Saved in secure storage' : provider.envKey}
+                          placeholder={hasSavedKey ? (desktopKeyStorage ? 'Saved in secure storage' : 'Configured in server environment') : provider.envKey}
                           disabled={!desktopKeyStorage || isSaving}
                           className="flex-1 text-xs px-2 py-1.5 bg-transparent outline-none font-mono"
                           style={{ color: 'var(--color-text)' }}
@@ -511,7 +509,10 @@ export function CommandPalette() {
                           {isVisible ? <EyeOff size={12} /> : <Eye size={12} />}
                         </button>
                       </div>
-                      {hasSavedKey && (
+                      {/* Remove only exists on desktop (keychain). In browser mode
+                          keys come from the server environment, which the keychain
+                          API cannot edit. */}
+                      {hasSavedKey && desktopKeyStorage && (
                         <button
                           onClick={() => handleSaveKey(provider, '')}
                           disabled={isSaving}
