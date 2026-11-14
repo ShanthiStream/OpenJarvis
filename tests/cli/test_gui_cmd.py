@@ -120,3 +120,31 @@ def test_wait_for_port_stops_when_vite_exits() -> None:
     with mock.patch.object(gui_cmd.socket, "create_connection") as connect:
         assert not gui_cmd._wait_for_port(process, "127.0.0.1", 5173)
     connect.assert_not_called()
+
+
+def test_wait_for_api_returns_once_health_flips(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def fake_health(port: int, timeout: float = 3.0) -> bool:
+        calls["n"] += 1
+        return calls["n"] >= 3
+
+    monkeypatch.setattr(gui_cmd, "_api_healthy", fake_health)
+    monkeypatch.setattr(gui_cmd.time, "sleep", lambda _seconds: None)
+
+    assert gui_cmd._wait_for_api(8000, timeout=5.0) is True
+    assert calls["n"] == 3
+
+
+def test_wait_for_api_gives_up_after_timeout(monkeypatch) -> None:
+    monkeypatch.setattr(gui_cmd, "_api_healthy", lambda *args, **kwargs: False)
+    clock = {"t": 0.0}
+
+    monkeypatch.setattr(gui_cmd.time, "monotonic", lambda: clock["t"])
+
+    def fake_sleep(seconds: float) -> None:
+        clock["t"] += seconds
+
+    monkeypatch.setattr(gui_cmd.time, "sleep", fake_sleep)
+
+    assert gui_cmd._wait_for_api(8000, timeout=1.0) is False

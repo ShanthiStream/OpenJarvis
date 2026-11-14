@@ -405,6 +405,9 @@ def test_api_failure_before_first_healthy_probe_does_not_leave_gui_running(
         gui_cmd.subprocess, "run", mock.Mock(return_value=mock.Mock(returncode=0))
     )
     monkeypatch.setattr(gui_cmd, "_daemon_pid_alive", lambda port: False)
+    # The startup wait has its own coverage; skip the 20s stall here so the
+    # monitor path under test is reached immediately.
+    monkeypatch.setattr(gui_cmd, "_wait_for_api", lambda *args, **kwargs: False)
 
     result = CliRunner().invoke(gui_cmd.gui, ["--no-browser"])
 

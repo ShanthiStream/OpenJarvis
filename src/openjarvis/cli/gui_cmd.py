@@ -396,6 +396,21 @@ def _api_healthy(port: int, timeout: float = 3.0) -> bool:
         return False
 
 
+def _wait_for_api(port: int, timeout: float = 20.0) -> bool:
+    """Block until the API answers ``/health`` or *timeout* elapses.
+
+    The frontend is served by Vite, which is ready before uvicorn is. Opening
+    the browser at that moment made the first ``/v1/models`` request fail, and
+    the app stayed on "Pick a model first" until the tab was reloaded.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _api_healthy(port, 1.0):
+            return True
+        time.sleep(0.25)
+    return False
+
+
 def _daemon_pid_alive(port: int, *, require_ready: bool = False) -> bool:
     """Whether the daemon registered on *port* is still a live process.
 
@@ -576,6 +591,11 @@ def gui(frontend_port: int, api_port: int, no_server: bool, no_browser: bool) ->
             )
         owner.refresh()
         url = f"http://127.0.0.1:{frontend_port}"
+        # Wait for the API before handing the browser a page that immediately
+        # calls /v1/models and /v1/info. Ask only when this command launched
+        # the server; an externally managed API may already be answering.
+        if launched_api:
+            _wait_for_api(api_port)
         console.print(f"[green]OpenJarvis graphical mode is ready:[/green] {url}")
         if not no_browser:
             webbrowser.open(url)

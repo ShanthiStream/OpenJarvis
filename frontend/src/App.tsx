@@ -66,29 +66,63 @@ export default function App() {
     return () => clearInterval(interval);
   }, [importOverlay]);
 
-  // Wait for desktop setup so a startup request cannot clear the models
-  // SetupScreen loaded before handing off to chat.
+  // Load models and server info, retrying while the API is still booting.
+  // The browser is opened as soon as Vite is ready, which can be a second or
+  // two before uvicorn accepts connections; a single failed request used to
+  // leave the model picker empty ("Pick a model first") and drop the
+  // remembered selection until the user reloaded the tab by hand.
   useEffect(() => {
     if (!setupDone) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
     setModelsLoading(true);
-    fetchModels()
-      .then((m) => {
-        if (!cancelled) setModels(m);
-      })
-      // Preserve models already loaded by setup if this refresh fails.
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setModelsLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [setupDone, setModels, setModelsLoading]);
 
-  // Fetch server info
+    const attempt = async () => {
+      if (cancelled) return;
+      attempts += 1;
+      try {
+        const [models, info] = await Promise.all([
+          fetchModels(),
+          fetchServerInfo(),
+        ]);
+        if (cancelled) return;
+        setServerInfo(info);
+        setModels(models);
+        setModelsLoading(false);
+      } catch {
+        if (cancelled) return;
+        if (attempts >= 30) {
+          setModelsLoading(false);
+          return;
+        }
+        timer = setTimeout(attempt, 2000);
+      }
+    };
+
+    void attempt();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [setupDone, setModels, setModelsLoading, setServerInfo]);
+
+  // Refetch when the tab becomes visible again, so a window left open across
+  // a `jarvis stop` / `jarvis gui` cycle recovers without a manual reload.
   useEffect(() => {
     if (!setupDone) return;
-    fetchServerInfo().then(setServerInfo).catch(() => {});
-  }, [setupDone, setServerInfo]);
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetchModels()
+        .then(setModels)
+        .catch(() => {});
+      fetchServerInfo()
+        .then(setServerInfo)
+        .catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [setupDone, setModels, setServerInfo]);
 
   // Poll savings and optionally share to Supabase
   useEffect(() => {
