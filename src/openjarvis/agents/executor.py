@@ -52,6 +52,22 @@ def _resolve_tick_model(config: dict[str, Any], system: Any) -> str:
     )
 
 
+def _engine_supports_cloud(engine: Any) -> bool:
+    """Whether *engine* routes cloud-provider model ids at all.
+
+    The server is usually a MultiEngine; single-engine setups (e.g. a lone
+    Ollama instance, as when no provider key is visible at boot) cannot serve
+    ``openrouter/...`` ids at all. Treat the engine as cloud-capable only when
+    it actually wraps a cloud client.
+    """
+    inner = getattr(engine, "_inner", engine)
+    engine_id = str(getattr(inner, "engine_id", "") or "")
+    if type(inner).__name__ == "MultiEngine" or engine_id == "multi":
+        engines = getattr(inner, "_engines", ()) or ()
+        return any(key == "cloud" for key, _ in engines)
+    return engine_id == "cloud"
+
+
 def _available_tick_models(engine: Any, resolved_model: str) -> list[str]:
     """Return every model the active engine can actually route to.
 
@@ -386,6 +402,21 @@ class AgentExecutor:
         model = _resolve_tick_model(config, self._system)
         if not model:
             raise FatalError("No model configured for agent")
+
+        # Fail fast when the agent was configured with a cloud model id but
+        # the server has no cloud client. Otherwise the raw local engine
+        # 404s on the provider-mangled id and the error reads like "model not
+        # found on Ollama" instead of a missing/rejected API key.
+        from openjarvis.server.cloud_router import is_cloud_model
+
+        if is_cloud_model(model) and not _engine_supports_cloud(engine):
+            raise FatalError(
+                f"Agent uses cloud model {model!r} but this server has no "
+                "cloud client configured (no provider key visible to the "
+                "server process). Re-save the key in Settings -> API Keys "
+                "(or export OPENROUTER_API_KEY for the server) and restart, "
+                "or pick an Ollama-installed model."
+            )
 
         logger.info(
             "Agent %s [%s]: using model=%s, engine=%s",
