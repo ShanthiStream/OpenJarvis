@@ -14,7 +14,30 @@ declare global {
 
 export const isTauri = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
 
+/**
+ * Live catalog of $0 OpenRouter models, served by the backend.
+ * Ids are prefixed with "openrouter/" and round-trip through the cloud router.
+ * The catalog endpoint needs no key, so an empty result means "no free models",
+ * not "no key"; `key_configured` tells you which.
+ */
+export async function fetchOpenRouterFreeModels(): Promise<OpenRouterFreeModel[]> {
+  const res = await apiFetch('/v1/openrouter/models');
+  if (!res.ok) {
+    throw new Error(`Could not load OpenRouter models (HTTP ${res.status})`);
+  }
+  const body = await res.json();
+  return Array.isArray(body?.models) ? (body.models as OpenRouterFreeModel[]) : [];
+}
+
 export type CloudKeyStatus = Record<string, boolean>;
+
+export interface OpenRouterFreeModel {
+  /** Chat id, e.g. "openrouter/inkling/ling-2.6-flash:free". */
+  id: string;
+  name: string;
+  context_length?: number | null;
+  modality?: string | null;
+}
 
 export async function getCloudKeyStatus(): Promise<CloudKeyStatus> {
   // Browser / manual setups: the server knows which provider keys are present

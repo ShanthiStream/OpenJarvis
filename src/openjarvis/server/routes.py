@@ -1215,6 +1215,87 @@ async def delete_model(model_name: str, request: Request):
     return {"status": "deleted", "model": model_name}
 
 
+def _openrouter_free_models(items: list) -> list:
+    """Filter an OpenRouter catalog to $0 models, tagged for this server.
+
+    Ids are prefixed with ``openrouter/`` so they can be passed straight to
+    /v1/chat/completions and to the agent configuration.
+    """
+    models: list[dict] = []
+    for item in items:
+        model_id = str(item.get("id") or "").strip()
+        if not model_id:
+            continue
+        pricing = item.get("pricing") or {}
+        if str(pricing.get("prompt")) != "0" or str(pricing.get("completion")) != "0":
+            continue
+        models.append(
+            {
+                "id": f"openrouter/{model_id}",
+                "name": item.get("name") or model_id,
+                "context_length": item.get("context_length"),
+                "modality": item.get("modality"),
+            }
+        )
+    models.sort(key=lambda model: model["id"].lower())
+    return models
+
+
+@router.get("/v1/openrouter/models")
+async def openrouter_models(request: Request, free: bool = True):
+    """Return the live OpenRouter model catalog.
+
+    Free-only by default (pricing prompt and completion both "0"). Results are
+    cached for 10 minutes per server process. The chat IDs are prefixed with
+    ``openrouter/`` so they round-trip through the cloud router unchanged.
+    """
+    import os
+    import time
+
+    import httpx
+
+    now = time.monotonic()
+    cached = getattr(request.app.state, "_openrouter_catalog_cache", None)
+    if cached is not None and cached[0] == free and now - cached[1] < 600:
+        models = cached[2]
+    else:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get("https://openrouter.ai/api/v1/models")
+                resp.raise_for_status()
+                items = resp.json().get("data") or []
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OpenRouter catalog unreachable: {exc}",
+            )
+        models = (
+            _openrouter_free_models(items)
+            if free
+            else [
+                {
+                    "id": f"openrouter/{item['id']}",
+                    "name": item.get("name") or item["id"],
+                    "context_length": item.get("context_length"),
+                    "modality": item.get("modality"),
+                }
+                for item in items
+                if item.get("id")
+            ]
+        )
+        request.app.state._openrouter_catalog_cache = (free, now, models)
+
+    from openjarvis.server.cloud_router import load_cloud_env
+
+    load_cloud_env()
+    return {
+        "status": "ok",
+        "free": free,
+        "key_configured": bool(os.environ.get("OPENROUTER_API_KEY")),
+        "models": models,
+    }
+
+
 @router.post("/v1/cloud/reload")
 async def reload_cloud_engine(request: Request):
     """Hot-reload cloud API keys and (re-)initialize the cloud engine.

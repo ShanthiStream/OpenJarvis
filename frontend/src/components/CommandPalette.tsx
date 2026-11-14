@@ -9,7 +9,10 @@ import {
   isTauri,
   getCloudKeyStatus,
   saveCloudKey,
+  fetchOpenRouterFreeModels,
+  type OpenRouterFreeModel,
 } from '../lib/api';
+import { formatContextLength } from '../lib/cloudModels';
 
 /** Popular models that users can download from the catalogue. */
 const CATALOGUE_MODELS = [
@@ -97,6 +100,10 @@ export function CommandPalette() {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [cloudKeyStatus, setCloudKeyStatus] = useState<Record<string, boolean>>({});
   const [cloudKeyError, setCloudKeyError] = useState<string | null>(null);
+  // Live $0 OpenRouter catalog; null until the first fetch settles so the
+  // UI can show a loading state instead of the hardcoded fallback.
+  const [openrouterFreeModels, setOpenrouterFreeModels] = useState<OpenRouterFreeModel[] | null>(null);
+  const [openrouterCatalogError, setOpenrouterCatalogError] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -138,6 +145,21 @@ export function CommandPalette() {
   useEffect(() => {
     void refreshCloudKeyStatus();
   }, [refreshCloudKeyStatus]);
+
+  // Lazy-load the free OpenRouter catalog only when the tab is opened; the
+  // catalog is one public request and the tab shows it for every mount.
+  useEffect(() => {
+    if (tab !== 'cloud' || openrouterFreeModels !== null) return;
+    let cancelled = false;
+    fetchOpenRouterFreeModels()
+      .then((free) => { if (!cancelled) setOpenrouterFreeModels(free); })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setOpenrouterCatalogError(e instanceof Error ? e.message : String(e));
+        setOpenrouterFreeModels([]); // fall back to the built-in list
+      });
+    return () => { cancelled = true; };
+  }, [tab, openrouterFreeModels]);
 
   useEffect(() => {
     setSelectedIdx(0);
@@ -476,6 +498,23 @@ export function CommandPalette() {
                 const isVisible = showKeys[provider.envKey];
                 const isSaving = savingKey === provider.envKey;
 
+                const isOpenRouter = provider.envKey === 'OPENROUTER_API_KEY';
+                const baseModels: Array<{ id: string; desc: string }> =
+                  isOpenRouter && openrouterFreeModels
+                    ? [
+                        { id: 'openrouter/auto', desc: 'Auto — best model for the task' },
+                        ...openrouterFreeModels.map((m) => ({
+                          id: m.id,
+                          desc: `${formatContextLength(m.context_length)}${m.context_length ? ' · ' : ''}Free${m.modality ? ` · ${m.modality}` : ''}`,
+                        })),
+                      ]
+                    : provider.models;
+                const visibleModels = query
+                  ? baseModels.filter((model) =>
+                      `${model.id} ${model.desc}`.toLowerCase().includes(query.toLowerCase()),
+                    )
+                  : baseModels;
+
                 return (
                   <div key={provider.name} className="mb-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -526,8 +565,18 @@ export function CommandPalette() {
 
                     {/* Models for this provider (only show if key is set) */}
                     {hasKey && (
-                      <div className="ml-5 flex flex-col gap-1">
-                        {provider.models.map((model) => {
+                      <div className="ml-5 flex flex-col gap-1 max-h-64 overflow-y-auto pr-1">
+                        {isOpenRouter && openrouterFreeModels === null && (
+                          <div className="text-[10px] px-2.5 py-1.5" style={{ color: 'var(--color-text-tertiary)' }}>
+                            Loading free OpenRouter models…
+                          </div>
+                        )}
+                        {isOpenRouter && openrouterCatalogError && (
+                          <div className="text-[10px] px-2.5 py-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                            Live catalog unavailable ({openrouterCatalogError}); showing built-in suggestions.
+                          </div>
+                        )}
+                        {visibleModels.map((model) => {
                           const isActive = model.id === selectedModel;
                           return (
                             <button

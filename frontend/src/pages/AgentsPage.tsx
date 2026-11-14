@@ -64,6 +64,8 @@ import {
 } from 'lucide-react';
 import { SOURCE_CATALOG } from '../types/connectors';
 import type { ConnectRequest } from '../types/connectors';
+import { isCloudModelId } from '../lib/model-capabilities';
+import { useCloudModelCatalog, POPULAR_CLOUD_MODELS, formatContextLength } from '../lib/cloudModels';
 import { listConnectors, connectSource } from '../lib/connectors-api';
 import type { ToolCallInfo } from '../types';
 import { ToolCallCard } from '../components/Chat/ToolCallCard';
@@ -677,6 +679,7 @@ function LaunchWizard({
   const [recommendedModel, setRecommendedModel] = useState('');
   const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
   const models = useAppStore((s) => s.models);
+  const { openrouterFree } = useCloudModelCatalog();
 
   useEffect(() => {
     fetchRecommendedModel().then((r) => {
@@ -898,11 +901,30 @@ function LaunchWizard({
                 className="w-full px-3 py-2 rounded-lg text-sm"
                 style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
               >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id}{m.id === recommendedModel ? ' (recommended)' : ''}
-                  </option>
-                ))}
+                {models.length > 0 && (
+                  <optgroup label="Installed models">
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.id}{m.id === recommendedModel ? ' (recommended)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {openrouterFree.length > 0 && (
+                  <optgroup label="OpenRouter (free)">
+                    <option value="openrouter/auto">OpenRouter Auto — best model for the task</option>
+                    {openrouterFree.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}{m.context_length ? ` · ${formatContextLength(m.context_length)}` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Cloud (popular)">
+                  {POPULAR_CLOUD_MODELS.filter((p) => p.id !== 'openrouter/auto').map((p) => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             <div>
@@ -1395,6 +1417,7 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
   const [editingModel, setEditingModel] = useState(false);
   const [changingModel, setChangingModel] = useState(false);
   const [models, setModels] = useState<string[]>([]);
+  const { openrouterFree } = useCloudModelCatalog();
   const currentModel = (agent.config?.model as string) || '(default)';
 
   // Model availability status: 'available' | 'unavailable' | 'unknown'
@@ -1414,6 +1437,10 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
         setOllamaModels(installed);
         if (currentModel === '(default)') {
           setModelAvailable(installed.length > 0 ? 'available' : 'unknown');
+        } else if (isCloudModelId(currentModel)) {
+          // The cloud engine resolves these at run time; it does not need
+          // to appear in the local installed list.
+          setModelAvailable('available');
         } else {
           const isInstalled = installed.some(
             (n) => n === currentModel || n.startsWith(currentModel + ':') || currentModel.startsWith(n.split(':')[0])
@@ -1439,6 +1466,8 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
   }
 
   function isModelInstalled(modelId: string): boolean {
+    // Cloud catalog models are resolved by the cloud engine at run time.
+    if (isCloudModelId(modelId)) return true;
     return ollamaModels.some(
       (n) => n === modelId || n.startsWith(modelId + ':') || modelId.startsWith(n.split(':')[0])
     );
@@ -1475,14 +1504,33 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
           className="text-sm rounded px-1 py-0.5"
           style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
         >
-          {models.map((m) => {
-            const installed = isModelInstalled(m);
-            return (
-              <option key={m} value={m} style={!installed ? { color: 'var(--color-text-tertiary)' } : undefined}>
-                {m}{!installed ? ' (not installed)' : ''}
-              </option>
-            );
-          })}
+          {models.length > 0 && (
+            <optgroup label="Installed models">
+              {models.map((m) => {
+                const installed = isModelInstalled(m);
+                return (
+                  <option key={m} value={m} style={!installed ? { color: 'var(--color-text-tertiary)' } : undefined}>
+                    {m}{!installed ? ' (not installed)' : ''}
+                  </option>
+                );
+              })}
+            </optgroup>
+          )}
+          {openrouterFree.length > 0 && (
+            <optgroup label="OpenRouter (free)">
+              <option value="openrouter/auto">OpenRouter Auto — best model for the task</option>
+              {openrouterFree.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}{m.context_length ? ` · ${formatContextLength(m.context_length)}` : ''}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          <optgroup label="Cloud (popular)">
+            {POPULAR_CLOUD_MODELS.filter((p) => p.id !== 'openrouter/auto').map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </optgroup>
         </select>
       )
     ) : (
